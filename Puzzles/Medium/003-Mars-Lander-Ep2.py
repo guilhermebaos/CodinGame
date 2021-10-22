@@ -3,7 +3,11 @@ import math
 
 # CONSTANTS
 g = 3.711  # Gravity
-max_angle = math.degrees(math.asin(g / 4))  # Maximum angle for constant vertical velocity at thrust 4
+max_angle = math.degrees(math.acos(g / 4)) - 1  # Maximum angle for constant vertical velocity at thrust 4
+
+# PARAMETERS
+min_h_speed = 10  # Minimum acceptable horizontal speed
+min_v_distance = 750
 
 # FIRST INPUTS
 
@@ -20,11 +24,11 @@ for i in range(surface_n):
 def find_flat(surface):
     for index in range(len(surface) - 1):
         if surface[index][1] == surface[index + 1][1]:
-            return [surface[index][0], surface[index + 1][0]]
+            return [surface[index][0], surface[index + 1][0], surface[index][1]]
 
 
 def dist_to_flat(x, flat):
-    start, end = flat
+    start, end = flat[0], flat[1]
     if x < start:
         return start - x
     elif x > end:
@@ -50,16 +54,24 @@ while True:
 
     # CONTOL SYSTEM
     new_rotate = 0
-    new_power = 3
-    min_h_speed = 10  # Minimum acceptable horizontal speed
+    new_power = 4
+    allowed_angle = 45  # Allowed Angle to Turn
 
     # DATA ANALASYS
 
+    # VDC -> VERTICAL DISTANCE CONTROL
+
+    # If we're only slightly above the landing area, make sure we don't get below it
+    if y < flat[2] + min_v_distance and v_speed < 1:
+        allowed_angle = max_angle
+
+    # HDC -> HORIZONTAL DISTANCE CONTROL
+
     # Horizontal Speed Info
     delta_h_speed = abs(min_h_speed - abs(h_speed))  # Delta v we need to get to min_h_speed
-    h_acc = math.sin(math.radians(45)) * 4  # Horizontal Acceleration
+    h_acc = math.sin(math.radians(allowed_angle)) * 4  # Horizontal Acceleration
 
-    time_to_h_decelerate = 1.2 * delta_h_speed / h_acc  # Time to decelerate given by Delta v over a
+    time_to_h_decelerate = 1.3 * delta_h_speed / h_acc  # Time to decelerate given by Delta v over a
 
     delta_h_pos = time_to_h_decelerate * (h_speed + min_h_speed) / 2  # Delta h position if we start breaking now
 
@@ -67,7 +79,7 @@ while True:
 
     # Get to landing area ASAP
     if dist != 0:
-        new_rotate = -45 * direction
+        new_rotate = -allowed_angle * direction
         new_power = 4
 
         # HSC -> HORIZONTAL SPEED CONTROL
@@ -75,10 +87,10 @@ while True:
         # Activate HSC if we are already going to stop in the right area if we start breaking now, Position = x + vt, where v is average speed of the interval!
         if (flat[0] < final_h_pos < flat[1]):
             if abs(h_speed) > min_h_speed:
-                new_rotate = 45 * (1 if h_speed > 0 else -1)
+                new_rotate = allowed_angle * (1 if h_speed > 0 else -1)
 
         elif (flat[0] < final_h_pos and dist >= 0) or (flat[1] > final_h_pos and dist <= 0):
-            new_rotate = 45 * (1 if h_speed > 0 else -1)
+            new_rotate = allowed_angle * (1 if h_speed > 0 else -1)
 
         # VSC -> VERTCAL SPEED CONTROL
 
@@ -93,14 +105,14 @@ while True:
     if dist == 0:
         # Local HSC (Horizontal Speed Control)
         if flat[0] + 100 > final_h_pos:
-            new_rotate = -45
+            new_rotate = -allowed_angle
             new_power = 4
         elif flat[1] - 100 < final_h_pos:
-            new_rotate = 45
+            new_rotate = allowed_angle
             new_power = 4
 
         if abs(h_speed) > min_h_speed:
-            new_rotate = 45 * (1 if h_speed > 0 else -1)
+            new_rotate = allowed_angle * (1 if h_speed > 0 else -1)
             new_power = 4
 
         # Local VSC (Vertical Speed Control)
@@ -110,6 +122,9 @@ while True:
             new_rotate = 0
         elif v_speed > -15:
             new_power = 3
+
+        if y < flat[2] + 50:
+            new_rotate = 0
 
     # print(rotate power)
     print(f'{int(new_rotate)} {new_power}')
